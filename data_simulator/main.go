@@ -2,48 +2,27 @@ package main
 
 import (
 	"data_simulator/config"
-	"encoding/json"
+	"data_simulator/generator"
+	"data_simulator/repository/http"
+	"data_simulator/repository/mqtt"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
-
-type Payload struct {
-	DeviceID    string  `json:"device_id"`
-	Temperature float64 `json:"temperature"`
-	Humidity    float64 `json:"humidity"`
-	Timestamp   int64   `json:"timestamp"`
-}
-
-var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
-	log.Println("Connected to MQTT Broker")
-}
-
-var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
-	fmt.Printf("Connection lost: %v", err)
-}
 
 func main() {
 	cfg := config.LoadConfig()
 
-	opts := mqtt.NewClientOptions()
-	opts.AddBroker(cfg.BrokerURL)
-	opts.SetClientID(cfg.ClientID)
-	opts.SetCleanSession(true)
-	opts.OnConnect = connectHandler
-	opts.OnConnectionLost = connectLostHandler
-
-	client := mqtt.NewClient(opts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		log.Fatalf("Failed to connect to broker: %v", token.Error())
+	mqttClient, err := mqtt.New(cfg.MQTTConfig.BrokerURL, cfg.MQTTConfig.ClientID, cfg.MQTTConfig.TopicPrefix)
+	if err != nil {
+		log.Fatalf("Failed to connect to broker: %v", err)
 	}
+
+	httpClient := http.New(cfg.HTTPConfig.Timeout, cfg.HTTPConfig.BaseURL)
 
 	interval := time.Duration(float64(time.Second) / cfg.MsgRate)
 
@@ -52,12 +31,11 @@ func main() {
 
 	for i := 1; i <= cfg.DeviceCount; i++ {
 		wg.Add(1)
-		deviceID := fmt.Sprintf("device-%d", i)
 
 		go func(id string) {
 			defer wg.Done()
-			generateData(client, id, cfg.TopicPrefix, interval, stopChan)
-		}(deviceID)
+			sendMessage(cfg.Mode, mqttClient, httpClient, id, interval, stopChan)
+		}(fmt.Sprintf("%d", i))
 	}
 
 	sigChan := make(chan os.Signal, 1)
@@ -67,43 +45,42 @@ func main() {
 	log.Println("shutting down generator gracefully")
 	close(stopChan)
 	wg.Wait()
-	client.Unsubscribe(cfg.TopicPrefix)
-	client.Disconnect(250)
+	mqttClient.GracefulStop()
 	log.Println("generator closed successfully")
 }
 
-func generateData(client mqtt.Client, deviceID, topicPrefix string, interval time.Duration, stop <-chan struct{}) {
+func sendMessage(
+	mode config.Mode,
+	mqttClient *mqtt.MQTTClient,
+	httpClient *http.HTTPClient,
+	deviceID string,
+	interval time.Duration,
+	stop <-chan struct{},
+) {
+	useHTTP := mode == config.ModeHTTP || mode == config.ModeAll
+	useMQTT := mode == config.ModeMQTT || mode == config.ModeAll
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-
-	topic := fmt.Sprintf("%s/%s", topicPrefix, deviceID)
 
 	for {
 		select {
 		case <-stop:
 			return
 		case <-ticker.C:
-			payload := Payload{
-				DeviceID:    deviceID,
-				Temperature: 20.0 + rand.Float64()*15.0,
-				Humidity:    30.0 + rand.Float64()*50.0,
-				Timestamp:   time.Now().UnixMilli(),
-			}
-
-			bytes, err := json.Marshal(payload)
-			if err != nil {
-				log.Printf("JSON Error: %v", err)
-				continue
-			}
-
-			token := client.Publish(topic, 0, false, bytes)
-
-			go func() {
-				token.Wait()
-				if token.Error() != nil {
-					log.Printf("Broker Error: %v", err)
+			payload := generator.GenerateRandomEvent(deviceID)
+			if useMQTT {
+				err := mqttClient.SendDeviceEvent(payload, deviceID)
+				if err != nil {
+					log.Printf("MQTT Error: %v", err)
 				}
-			}()
+			}
+			if useHTTP {
+				err := httpClient.SendDeviceEvent(payload)
+				if err != nil {
+					log.Printf("HTTP Error: %v", err)
+				}
+			}
 		}
 	}
 }
