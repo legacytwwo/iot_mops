@@ -35,7 +35,7 @@ type HTTPConfig struct {
 
 func LoadConfig() Config {
 	return Config{
-		Mode:        Mode(getEnvAsString("MODE", "all")),
+		Mode:        Mode(getEnvAsString("MODE", "mqtt")),
 		DeviceCount: getEnvAsInt("DEVICE_COUNT", 100),
 		MsgRate:     getEnvAsFloat("MSG_RATE", 1.0),
 		HTTPConfig: HTTPConfig{
@@ -44,7 +44,7 @@ func LoadConfig() Config {
 		},
 		MQTTConfig: MQTTConfig{
 			TopicPrefix: getEnvAsString("TOPIC_PREFIX", "devices"),
-			ClientID:    getEnvAsString("CLIENT_ID", "go-mqtt-client"),
+			ClientID:    getEnvAsString("CLIENT_ID", "go-mqtt-writer"),
 			BrokerURL:   getEnvAsString("MQTT_BROKER", "tcp://localhost:1883"),
 		},
 	}
