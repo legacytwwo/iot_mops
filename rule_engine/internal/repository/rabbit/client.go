@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	mathrand "math/rand"
 	"strconv"
 	"time"
 
@@ -23,10 +22,6 @@ type Client struct {
 }
 
 func New(conn *amqp.Connection, cfg config.RabbitConfig, logger *zap.Logger) *Client {
-	seed := make([]byte, 8)
-	_, _ = rand.Read(seed)
-	mathrand.Seed(int64(binaryToUint64(seed)))
-
 	return &Client{
 		conn:   conn,
 		cfg:    cfg,
@@ -39,7 +34,11 @@ func (c *Client) SetupTopology() error {
 	if err != nil {
 		return fmt.Errorf("channel: %w", err)
 	}
-	defer ch.Close()
+	defer func() {
+		if err := ch.Close(); err != nil {
+			c.logger.Warn("rabbit channel close", zap.Error(err))
+		}
+	}()
 
 	if err := ch.ExchangeDeclare(c.cfg.Exchange, c.cfg.ExchangeType, true, false, false, false, nil); err != nil {
 		return fmt.Errorf("declare exchange: %w", err)
@@ -109,13 +108,17 @@ func (c *Client) Consume(ctx context.Context) (<-chan amqp.Delivery, func() erro
 	}
 
 	cleanup := func() error {
-		_ = ch.Cancel(c.cfg.ConsumerTag, false)
+		if err := ch.Cancel(c.cfg.ConsumerTag, false); err != nil {
+			c.logger.Warn("rabbit cancel", zap.Error(err))
+		}
 		return ch.Close()
 	}
 
 	go func() {
 		<-ctx.Done()
-		_ = ch.Cancel(c.cfg.ConsumerTag, false)
+		if err := ch.Cancel(c.cfg.ConsumerTag, false); err != nil {
+			c.logger.Warn("rabbit cancel", zap.Error(err))
+		}
 	}()
 
 	return deliveries, cleanup, nil
@@ -141,7 +144,11 @@ func (c *Client) publish(ctx context.Context, exchange, routingKey string, body 
 	if err != nil {
 		return fmt.Errorf("channel: %w", err)
 	}
-	defer ch.Close()
+	defer func() {
+		if err := ch.Close(); err != nil {
+			c.logger.Warn("rabbit channel close", zap.Error(err))
+		}
+	}()
 
 	pub := amqp.Publishing{
 		Headers:      headers,
@@ -217,7 +224,7 @@ func NextRetryDelay(base, max time.Duration, attempt int, jitter float64) time.D
 		return d
 	}
 
-	factor := 1 + (mathrand.Float64()*2-1)*jitter
+	factor := 1 + (randFloat64()*2-1)*jitter
 	return time.Duration(float64(d) * factor)
 }
 
@@ -229,10 +236,12 @@ func copyHeaders(src amqp.Table) amqp.Table {
 	return dst
 }
 
-func binaryToUint64(b []byte) uint64 {
-	var out uint64
-	for i := 0; i < len(b) && i < 8; i++ {
-		out = (out << 8) | uint64(b[i])
+func randFloat64() float64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return float64(time.Now().UnixNano()%1_000_000) / 1_000_000
 	}
-	return out
+	v := uint64(b[0])<<56 | uint64(b[1])<<48 | uint64(b[2])<<40 | uint64(b[3])<<32 |
+		uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7])
+	return float64(v) / float64(^uint64(0))
 }

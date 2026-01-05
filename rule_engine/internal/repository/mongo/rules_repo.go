@@ -30,7 +30,7 @@ func (r *RulesRepository) FindEnabledByMetric(ctx context.Context, metric string
 	if err != nil {
 		return nil, fmt.Errorf("find rules: %w", err)
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var out []entities.Rule
 	if err := cur.All(ctx, &out); err != nil {
@@ -49,7 +49,7 @@ func (r *RulesRepository) FindInactivityRules(ctx context.Context) ([]entities.R
 	if err != nil {
 		return nil, fmt.Errorf("find inactivity rules: %w", err)
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var out []entities.Rule
 	if err := cur.All(ctx, &out); err != nil {

@@ -51,16 +51,22 @@ func New() (Env, error) {
 
 	redisClient, err := provideRedis(cfg)
 	if err != nil {
+		_ = mongoClient.Disconnect(context.Background())
 		return Env{}, err
 	}
 
 	rabbitConn, err := provideRabbit(cfg)
 	if err != nil {
+		_ = redisClient.Close()
+		_ = mongoClient.Disconnect(context.Background())
 		return Env{}, err
 	}
 
 	rabbitClient := rabbit.New(rabbitConn, cfg.Rabbit, lg)
 	if err := rabbitClient.SetupTopology(); err != nil {
+		_ = rabbitConn.Close()
+		_ = redisClient.Close()
+		_ = mongoClient.Disconnect(context.Background())
 		return Env{}, err
 	}
 
@@ -110,6 +116,7 @@ func provideMongo(cfg *config.Config) (*mongo.Client, error) {
 		return nil, fmt.Errorf("mongo connect: %w", err)
 	}
 	if err := client.Ping(ctx, readpref.Primary()); err != nil {
+		_ = client.Disconnect(context.Background())
 		return nil, fmt.Errorf("mongo ping: %w", err)
 	}
 	return client, nil
@@ -128,6 +135,7 @@ func provideRedis(cfg *config.Config) (*redis.Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
 		return nil, fmt.Errorf("redis ping: %w", err)
 	}
 	return client, nil

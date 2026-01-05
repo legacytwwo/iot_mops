@@ -2,7 +2,6 @@ package liveness
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"go.uber.org/zap"
@@ -139,5 +138,3 @@ func (w *Worker) runOnce(ctx context.Context) {
 
 	w.metrics.IncLivenessAlert(len(alerts))
 }
-
-var ErrNoRules = errors.New("no inactivity rules")

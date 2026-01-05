@@ -132,7 +132,7 @@ func appliedMigrations(ctx context.Context, db *mongo.Database) (map[string]bool
 	if err != nil {
 		return nil, fmt.Errorf("find migrations: %w", err)
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	out := make(map[string]bool)
 	for cur.Next(ctx) {

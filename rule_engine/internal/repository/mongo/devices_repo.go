@@ -36,7 +36,7 @@ func (r *DevicesRepository) FindIDsByScope(ctx context.Context, scope entities.D
 	if err != nil {
 		return nil, fmt.Errorf("find devices: %w", err)
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	out := make([]string, 0)
 	for cur.Next(ctx) {
