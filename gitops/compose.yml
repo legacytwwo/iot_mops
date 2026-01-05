@@ -1,0 +1,86 @@
+services:
+  mongodb:
+    image: mongo:8.2.3
+    container_name: iot_mongo
+    restart: always
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      iot_net:
+        aliases:
+          - mongo
+
+  rabbitmq:
+    image: rabbitmq:4.2.2-management
+    container_name: iot_rabbit
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      iot_net:
+        aliases:
+          - rabbitmq
+
+  redis:
+    image: redis:8.4.0
+    container_name: iot_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      iot_net:
+        aliases:
+          - redis
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    container_name: iot_mqtt
+    restart: always
+    ports:
+      - "1883:1883"
+    volumes:
+      - ../config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      iot_net:
+        aliases:
+          - mosquitto
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=${WATCHTOWER_POLL_INTERVAL}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+    restart: unless-stopped
+    networks:
+      - iot_net
+    profiles:
+      - prod
+
+volumes:
+  mongo_data:
+  rabbitmq_data:
+  redis_data:
+  mosquitto_data:
+  mosquitto_log:
+
+networks:
+  iot_net:
+    name: iot_net

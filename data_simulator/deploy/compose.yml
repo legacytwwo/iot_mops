@@ -1,0 +1,17 @@
+services:
+  data_simulator:
+    image: data_simulator:${IMAGE_TAG}
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: data_simulator/deploy/Dockerfile
+    env_file:
+      - data_simulator.env
+    restart: unless-stopped
+    networks:
+      - iot_net
+
+networks:
+  iot_net:
+    external: true
+    name: iot_net

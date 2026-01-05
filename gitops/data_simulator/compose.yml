@@ -1,0 +1,15 @@
+services:
+  data_simulator:
+    image: ${DATA_SIMULATOR_IMAGE}
+    env_file:
+      - data_simulator.env
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - iot_net
+
+networks:
+  iot_net:
+    external: true
+    name: iot_net

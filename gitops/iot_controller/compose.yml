@@ -1,0 +1,20 @@
+services:
+  iot_controller:
+    image: ${IOT_CONTROLLER_IMAGE}
+    env_file:
+      - iot_controller.env
+    environment:
+      - MONGO_URI=mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongodb:27017/?authSource=admin
+      - RABBITMQ_URL=amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+    ports:
+      - "${IOT_CONTROLLER_PORT}:8080"
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - iot_net
+
+networks:
+  iot_net:
+    external: true
+    name: iot_net

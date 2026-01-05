@@ -1,0 +1,19 @@
+services:
+  rule_engine:
+    image: rule_engine:${IMAGE_TAG}
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: rule_engine/deploy/Dockerfile
+    env_file:
+      - rule_engine.env
+    ports:
+      - "${RULE_ENGINE_PORT}:8080"
+    restart: unless-stopped
+    networks:
+      - iot_net
+
+networks:
+  iot_net:
+    external: true
+    name: iot_net

@@ -1,0 +1,19 @@
+services:
+  iot_controller:
+    image: iot_controller:${IMAGE_TAG}
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: iot_controller/deploy/Dockerfile
+    env_file:
+      - iot_controller.env
+    ports:
+      - "${IOT_CONTROLLER_PORT}:8080"
+    restart: unless-stopped
+    networks:
+      - iot_net
+
+networks:
+  iot_net:
+    external: true
+    name: iot_net
