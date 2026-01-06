@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"iot_controller/entities"
+	"iot_controller/metrics"
 	"iot_controller/service"
 	"log"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/go-playground/validator/v10"
 )
 
 type MQTTWorker struct {
+	metrics   *metrics.PromMetrics
 	client    mqtt.Client
 	validator *validator.Validate
 	topic     string
@@ -20,8 +23,9 @@ type MQTTWorker struct {
 	service   service.ServiceLayer
 }
 
-func New(client mqtt.Client, topic string, service service.ServiceLayer) *MQTTWorker {
+func New(m *metrics.PromMetrics, client mqtt.Client, topic string, service service.ServiceLayer) *MQTTWorker {
 	return &MQTTWorker{
+		metrics:   m,
 		client:    client,
 		validator: validator.New(),
 		topic:     topic,
@@ -57,15 +61,25 @@ func (w *MQTTWorker) StartWorker() {
 }
 
 func (w *MQTTWorker) handleMessage(payload []byte) error {
+	start := time.Now()
+	w.metrics.IncMessage("received")
+
 	var deviceEvent entities.Event
 	if err := json.Unmarshal(payload, &deviceEvent); err != nil {
+		w.metrics.IncValidationErrors()
+		log.Println("failed to decode request body: %w", err)
 		return err
 	}
 	if err := w.validator.Struct(deviceEvent); err != nil {
+		w.metrics.IncValidationErrors()
+		log.Println("failed to validate device event: %w", err)
 		return err
 	}
-	if err := w.service.ProcessTelemetry(context.TODO(), &deviceEvent); err != nil {
+	if err := w.service.ProcessTelemetry(context.Background(), &deviceEvent); err != nil {
+		log.Println("failed to process event: %w", err)
 		return err
 	}
+
+	w.metrics.ObserveProcessDuration("total", time.Since(start))
 	return nil
 }

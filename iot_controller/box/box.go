@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"iot_controller/config"
 	"log"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
@@ -19,6 +21,7 @@ type Box struct {
 	RabbitCh      *amqp.Channel
 	MQTTReader    mqtt.Client
 	MongoDBClient *mongo.Database
+	Redis         *redis.Client
 }
 
 func New() (*Box, error) {
@@ -39,12 +42,18 @@ func New() (*Box, error) {
 		return nil, fmt.Errorf("failed to init mqtt: %w", err)
 	}
 
+	redisClient, err := provideRedis(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init redis: %w", err)
+	}
+
 	return &Box{
 		Config:        cfg,
 		RabbitConn:    rabbitConn,
 		RabbitCh:      rabbitCh,
 		MongoDBClient: mongoClient,
 		MQTTReader:    mqttclient,
+		Redis:         redisClient,
 	}, nil
 }
 
@@ -101,5 +110,24 @@ func initMQTT(cfg config.MQTTConfig) (mqtt.Client, error) {
 		return nil, token.Error()
 	}
 
+	return client, nil
+}
+
+func provideRedis(cfg config.Config) (*redis.Client, error) {
+	opts := &redis.Options{
+		Addr:         cfg.Redis.Addr,
+		Password:     cfg.Redis.Password,
+		DB:           cfg.Redis.DB,
+		PoolSize:     cfg.Redis.PoolSize,
+		MinIdleConns: cfg.Redis.MinIdleConns,
+		DialTimeout:  cfg.Redis.DialTimeout,
+	}
+	client := redis.NewClient(opts)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx).Err(); err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("redis ping: %w", err)
+	}
 	return client, nil
 }

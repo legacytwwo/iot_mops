@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -10,6 +11,11 @@ import (
 const prefix = "iot_service_"
 
 type metrics struct {
+	MessagesTotal     *prometheus.CounterVec
+	ValidationErrors  prometheus.Counter
+	MongoErrors       prometheus.Counter
+	RabbitmqErrors    prometheus.Counter
+	ProcessDuration   *prometheus.HistogramVec
 	ActiveConnections prometheus.Gauge
 }
 
@@ -28,6 +34,27 @@ func NewServiceMetrics() *PromMetrics {
 			Name: "active_connections",
 			Help: "active_connections",
 		}),
+		MessagesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "messages_total",
+			Help: "total messages received from queue",
+		}, []string{"status"}),
+		ValidationErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "validation_errors",
+			Help: "validation_errors",
+		}),
+		MongoErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "mongo_errors",
+			Help: "mongo_errors",
+		}),
+		RabbitmqErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "rabbit_errors",
+			Help: "rabbit_errors",
+		}),
+		ProcessDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "process_duration_ms",
+			Help:    "processing duration per envelope",
+			Buckets: prometheus.ExponentialBucketsRange(1, 10_000, 12),
+		}, []string{"stage"}),
 	}
 
 	m := &PromMetrics{
@@ -63,4 +90,24 @@ func (m *PromMetrics) IncActiveConnections() {
 
 func (m *PromMetrics) DecActiveConnections() {
 	m.metrics.ActiveConnections.Dec()
+}
+
+func (m *PromMetrics) IncMessage(status string) {
+	m.metrics.MessagesTotal.WithLabelValues(status).Inc()
+}
+
+func (m *PromMetrics) ObserveProcessDuration(stage string, d time.Duration) {
+	m.metrics.ProcessDuration.WithLabelValues(stage).Observe(float64(d.Milliseconds()))
+}
+
+func (m *PromMetrics) IncValidationErrors() {
+	m.metrics.ValidationErrors.Inc()
+}
+
+func (m *PromMetrics) IncMongoErrors() {
+	m.metrics.MongoErrors.Inc()
+}
+
+func (m *PromMetrics) IncRabbitmqErrors() {
+	m.metrics.RabbitmqErrors.Inc()
 }

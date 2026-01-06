@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"sync"
 )
 
 type httpApp struct {
@@ -24,12 +23,9 @@ func (a *httpApp) Run() {
 	}()
 }
 
-func (a *httpApp) GracefullyStop(ctx context.Context, wg *sync.WaitGroup) {
-	go func() {
-		defer wg.Done()
-
-		if err := a.server.Shutdown(ctx); err != nil {
-			log.Fatalf("failed to shutdown http server: %v", err)
-		}
-	}()
+func (a *httpApp) GracefullyStop(ctx context.Context) error {
+	if err := a.server.Shutdown(ctx); err != nil {
+		return err
+	}
+	return nil
 }

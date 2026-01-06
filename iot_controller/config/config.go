@@ -11,6 +11,7 @@ type Config struct {
 	MQTTConfig       MQTTConfig
 	MongoDBConfig    MongoDBConfig
 	RabbitMQConfig   RabbitMQConfig
+	Redis            RedisConfig
 }
 
 type HTTPServerConfig struct {
@@ -41,6 +42,15 @@ type RabbitMQConfig struct {
 	RoutingKey string
 }
 
+type RedisConfig struct {
+	Addr         string        `env:"REDIS_ADDR" env-default:"localhost:6379"`
+	Password     string        `env:"REDIS_PASSWORD" env-default:""`
+	DB           int           `env:"REDIS_DB" env-default:"0"`
+	PoolSize     int           `env:"REDIS_POOL_SIZE" env-default:"10"`
+	MinIdleConns int           `env:"REDIS_MIN_IDLE_CONNS" env-default:"2"`
+	DialTimeout  time.Duration `env:"REDIS_DIAL_TIMEOUT" env-default:"2s"`
+}
+
 func LoadConfig() Config {
 	return Config{
 		HTTPServerConfig: HTTPServerConfig{
@@ -66,6 +76,14 @@ func LoadConfig() Config {
 		RabbitMQConfig: RabbitMQConfig{
 			URL:        getEnvAsString("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 			RoutingKey: getEnvAsString("RABBITMQ_ROUTING_KEY", "telemetry.envelopes"),
+		},
+		Redis: RedisConfig{
+			Addr:         getEnvAsString("REDIS_ADDR", "localhost:6379"),
+			Password:     getEnvAsString("REDIS_PASSWORD", ""),
+			DB:           getEnvAsInt("REDIS_DB", 0),
+			PoolSize:     getEnvAsInt("REDIS_POOL_SIZE", 10),
+			MinIdleConns: getEnvAsInt("REDIS_MIN_IDLE_CONNS", 2),
+			DialTimeout:  time.Duration(getEnvAsInt("REDIS_DIAL_TIMEOUT", 2)) * time.Second,
 		},
 	}
 }

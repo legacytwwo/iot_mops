@@ -11,6 +11,7 @@ import (
 )
 
 type httpHandlers struct {
+	metrics   *metrics.PromMetrics
 	validator *validator.Validate
 	Router    *chi.Mux
 	service   service.ServiceLayer
@@ -18,6 +19,7 @@ type httpHandlers struct {
 
 func New(m *metrics.PromMetrics, service service.ServiceLayer) *httpHandlers {
 	h := &httpHandlers{
+		metrics:   m,
 		validator: validator.New(),
 		service:   service,
 	}
@@ -31,6 +33,7 @@ func (h *httpHandlers) setRouter(m *metrics.PromMetrics) *chi.Mux {
 
 	router.Use(
 		middleware.Heartbeat("/ping"),
+		middleware.DefaultLogger,
 	)
 
 	router.Handle("/metrics", promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{EnableOpenMetrics: true}))

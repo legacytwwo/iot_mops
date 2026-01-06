@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"iot_controller/entities"
+	"time"
 )
 
 type EventRepository interface {
@@ -12,4 +13,8 @@ type EventRepository interface {
 
 type EventPublisher interface {
 	Publish(ctx context.Context, event *entities.Event) error
+}
+
+type LastSeenRepository interface {
+	SetLastSeen(ctx context.Context, deviceID string, ts time.Time) error
 }
