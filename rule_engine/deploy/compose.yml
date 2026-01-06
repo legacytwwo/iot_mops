@@ -11,7 +11,15 @@ services:
       - "${RULE_ENGINE_PORT}:8080"
     restart: unless-stopped
     networks:
-      - iot_net
+      iot_net:
+        aliases:
+            - rule_engine
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://localhost:12201"
+        mode: "non-blocking"
+        tag: "rule_engine"
 
 networks:
   iot_net:
